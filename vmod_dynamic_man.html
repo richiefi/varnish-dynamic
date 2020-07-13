@@ -1,0 +1,1348 @@
+<!-- Creator     : groff version 1.19.2 -->
+<!-- CreationDate: Mon Jul 13 18:14:31 2020 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p     { margin-top: 0; margin-bottom: 0; }
+       pre   { margin-top: 0; margin-bottom: 0; }
+       table { margin-top: 0; margin-bottom: 0; }
+</style>
+<title>VMOD_DYNAMIC</title>
+
+</head>
+<body>
+
+<h1 align=center>VMOD_DYNAMIC</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#BACKEND SHARING">BACKEND SHARING</a><br>
+<a href="#PROBING">PROBING</a><br>
+<a href="#TTLS FROM DNS">TTLS FROM DNS</a><br>
+<a href="#NAMES">NAMES</a><br>
+<a href="#STATISTICS">STATISTICS</a><br>
+<a href="#LOGGING">LOGGING</a><br>
+<a href="#PITFALLS">PITFALLS</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#BREAKING CHANGES">BREAKING CHANGES</a><br>
+<a href="#ACKNOWLEDGEMENTS">ACKNOWLEDGEMENTS</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+
+<hr>
+
+
+<a name="NAME"></a>
+<h2>NAME</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">vmod_dynamic
+&minus; Varnish dynamic backends module</p>
+
+<a name="SYNOPSIS"></a>
+<h2>SYNOPSIS</h2>
+
+<pre style="margin-left:15%; margin-top: 1em">import dynamic [as name] [from &quot;path&quot;]
+
+new xdirector = dynamic.director(STRING port, STRING host_header, ENUM share, PROBE probe, ACL whitelist, DURATION ttl, DURATION connect_timeout, DURATION first_byte_timeout, DURATION between_bytes_timeout, DURATION domain_usage_timeout, DURATION first_lookup_timeout, INT max_connections, INT proxy_header, BLOB resolver, ENUM ttl_from)
+
+    BACKEND xdirector.backend(STRING host, STRING port)
+
+    BACKEND xdirector.service(STRING service)
+
+    VOID xdirector.debug(BOOL)
+
+new xresolver = dynamic.resolver(BOOL set_from_os, INT parallel)
+
+    BLOB xresolver.use()
+
+    BOOL xresolver.set_resolution_type(ENUM)
+
+    BOOL xresolver.clear_namespaces()
+
+    BOOL xresolver.add_namespace(ENUM)
+
+    BOOL xresolver.set_namespaces()
+
+    BOOL xresolver.clear_transports()
+
+    BOOL xresolver.add_transport(ENUM)
+
+    BOOL xresolver.set_transports()
+
+    BOOL xresolver.set_idle_timeout(DURATION)
+
+    BOOL xresolver.set_limit_outstanding_queries(INT)
+
+    BOOL xresolver.set_timeout(DURATION)
+
+    BOOL xresolver.set_follow_redirects(ENUM)</pre>
+
+<a name="DESCRIPTION"></a>
+<h2>DESCRIPTION</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">This module
+provides a varnish director for dynamic creation of backends
+based on calls to</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p style="margin-top: 1em" valign="top">the system's
+network address resolution service which, in turn, typically
+use information from the <b>/etc/hosts</b> file and the
+Domain Name Service (DNS), but can be configured to use
+other sources like LDAP (see <i>nsswitch.conf(5)</i>).</p></td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p style="margin-top: 1em" valign="top">or more advanced
+DNS resolution where <i>getdns</i> is available.</p></td>
+</table>
+
+<p style="margin-left:11%; margin-top: 1em">While standard
+varnish backends defined in VCL may also be defined in terms
+of host names, changes of the name service information will
+only be picked up with a VCL reload.</p>
+
+<p style="margin-left:11%; margin-top: 1em">In contrast,
+for dynamic backends provided by this module,</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p style="margin-top: 1em" valign="top">name resolution
+information will be refreshed by background threads after a
+configurable time to live (ttl) or after the ttl from DNS
+with a <i>getdns dynamic.resolver()</i>.</p></td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p style="margin-top: 1em" valign="top">resolution to
+multiple network addresses is supported</p></td>
+</table>
+
+<p style="margin-left:11%; margin-top: 1em">In addition,
+with a <i>getdns dynamic.resolver()</i>, service discovery
+by DNS SRV records is possible, in which case this module
+also allows to configure host names (<i>targets</i>), their
+ports, priority and weight though DNS. See
+<i>https://en.wikipedia.org/wiki/SRV_record</i> for a good
+basic explanation and <i>xdirector.service()</i> for
+details.</p>
+
+<a name="BACKEND SHARING"></a>
+<h2>BACKEND SHARING</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">By default
+(<b>share = &quot;DIRECTOR&quot;</b> parameter), backends
+are shared per director: Only one backend per director
+instance and ip address (and optionally port) is
+created.</p>
+
+<p style="margin-left:11%; margin-top: 1em">The <b>share =
+&quot;HOST&quot;</b> parameter allows to limit sharing to
+backends created for the same hostname (<b>host</b> argument
+to the <b>.backend()</b> method).</p>
+
+<a name="PROBING"></a>
+<h2>PROBING</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">A probe to be
+used with dynamically created backends can be specified.
+Note that with <b>share = &quot;DIRECTOR&quot;</b>, a
+<b>Host:</b> header is only sent with probes if the
+<b>host_header</b> argument is provided during director
+initialization (or because a custom probe <b>request</b>
+contains one).</p>
+
+<p style="margin-left:11%; margin-top: 1em">With <b>share =
+&quot;HOST&quot;</b>, the <b>Host:</b> header for probes
+defaults to the backend's hostname (<b>host</b> argument to
+the <b>.backend()</b> method).</p>
+
+<p style="margin-left:11%; margin-top: 1em">Consider
+setting the <b>initial</b> attribute of probes at least as
+high as the <b>threshold</b> attribute. Otherwise
+transactions that trigger the first lookup of a domain will
+see a sick backend and fail.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Irrespective of
+the <b>initial</b> attribute, transactions may still fail
+for backends which are actually sick. This can be mitigated
+using the <b>retry</b> transition in VCL.</p>
+
+<a name="TTLS FROM DNS"></a>
+<h2>TTLS FROM DNS</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">With the
+default system resolver, TTLs from DNS are not supported
+optimally. While a good combination of a <i>ttl</i>
+parameter in combination with a system name service caching
+service like <i>nscd(8)</i> can achieve good results, to use
+TTLs from DNS, we recommend to compile this module with
+<i>getdns</i> support, configure a <i>dynamic.resolver()</i>
+object and set the <i>ttl_from</i> parameter to either
+<b>dns</b>, <b>min</b> or <b>max</b> as in this example:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">sub vcl_init {
+        new r = dynamic.resolver();
+        new d = dynamic.director(
+                resolver = r.use(),
+                ttl_from = dns
+                );
+}</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">See
+<i>ref_ttl_from</i> for details.</p>
+
+<a name="NAMES"></a>
+<h2>NAMES</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Directors and
+backends created by this vmod follow this naming scheme,
+which will be referred to as <i>&lt;name&gt;</i> in the
+following documentation</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="21%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>&lt;directorname&gt;</i></p> </td>
+<td width="65%">
+</td>
+</table>
+
+<p style="margin-left:14%; margin-top: 1em">The name of the
+VCL object created by <i>dynamic.director()</i></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="51%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>&lt;directorname&gt;</i>(<i>&lt;hostname&gt;</i>:<i>&lt;port&gt;</i>)</p> </td>
+<td width="35%">
+</td>
+</table>
+
+<p style="margin-left:14%; margin-top: 1em">A director
+(internally called <i>domain</i>), created as a result of a
+<i>xdirector.backend()</i> or, indirectly, for targets
+resulting from a <i>xdirector.service()</i> call.</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="35%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>&lt;directorname&gt;</i>(<i>service</i>)</p> </td>
+<td width="51%">
+</td>
+</table>
+
+<p style="margin-left:14%; margin-top: 1em">A director
+created as a result of a <i>xdirector.backend()</i> or
+<i>xdirector.service()</i> call.</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="43%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>&lt;directorname&gt;</i>(<i>address</i>:<i>port</i>)</p> </td>
+<td width="43%">
+</td>
+</table>
+
+<p style="margin-left:14%; margin-top: 1em">A dynamic
+backend for a <i>&lt;hostname&gt;</i>:<i>&lt;port&gt;</i>
+with DIRECTOR scope sharing</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="57%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>&lt;directorname&gt;</i>(<i>hostname</i>.<i>address</i>:<i>port</i>)</p> </td>
+<td width="29%">
+</td>
+</table>
+
+<p style="margin-left:14%; margin-top: 1em">A dynamic
+backend for a <i>&lt;hostname&gt;</i>:<i>&lt;port&gt;</i>
+with HOST scope sharing</p>
+
+<p style="margin-left:11%; margin-top: 1em"><i>port</i> may
+be represented symbolically (<b>http</b> by default)</p>
+
+<a name="STATISTICS"></a>
+<h2>STATISTICS</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Dynamic
+backends are created and deleted on demand and can be
+monitored just like VCL&minus;defined backends. Their
+statistics will appear in VSM&minus;tools like
+<b>varnishstat</b> as:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">VBE.&lt;configname&gt;.&lt;name&gt;.*</pre>
+
+
+<a name="LOGGING"></a>
+<h2>LOGGING</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">This module may
+log <b>VCL_Log</b>, <b>Error</b>, and <b>Debug</b> records
+following a common pattern:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">vmod&minus;dynamic: %s %s %s %s [ %s ]
+              |  |  |  |    |
+              |  |  |  |    +&minus; Additional information
+              |  |  |  +&minus;&minus;&minus;&minus;&minus;&minus; Event
+              |  |  +&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus; &lt;name&gt; without the &lt;director&gt; part
+              |  +&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus; Director name
+              +&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus;&minus; VCL name</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">Lookup
+timestamps are also logged to help troubleshooting, using
+regular <b>Timestamp</b> records with the following pattern
+for event labels:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">vmod&minus;dynamic &lt;vcl&gt;.&lt;name&gt; &lt;Lookup|Results|Update&gt;</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">When a lookup
+thread is terminated, either because the VCL is cooling down
+or the <b>domain_usage_timeout</b> triggered,
+<b>Timestamp</b> records are logged with the event:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">vmod&minus;dynamic &lt;vcl&gt;.&lt;name&gt; Done</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">Not all logs
+belong to HTTP transactions, especially since DNS lookups
+happen in the background. In order to capture all logs from
+this module the simplest way with varnishlog is the
+following:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">varnishlog &minus;g raw &minus;q '* ~ vmod&minus;dynamic'</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">It displays any
+individual record that contains the string
+<b>vmod&minus;dynamic</b> whether it belongs to a
+transaction or not.</p>
+
+<p style="margin-left:11%; margin-top: 1em">When a lookup
+fails, the backends are left untouched and the error will be
+logged with the following event:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">getaddrinfo &lt;errno&gt; (&lt;reason&gt;)</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>new
+xdirector = dynamic.director(STRING port, STRING
+host_header, ENUM share, PROBE probe, ACL whitelist,
+DURATION ttl, DURATION connect_timeout, DURATION
+first_byte_timeout, DURATION between_bytes_timeout, DURATION
+domain_usage_timeout, DURATION first_lookup_timeout, INT
+max_connections, INT proxy_header, BLOB resolver, ENUM
+ttl_from)</b></p>
+
+<pre style="margin-left:15%;">new xdirector = dynamic.director(
+   STRING port=&quot;http&quot;,
+   STRING host_header=0,
+   ENUM {DIRECTOR, HOST} share=DIRECTOR,
+   PROBE probe=0,
+   ACL whitelist=0,
+   DURATION ttl=3600,
+   DURATION connect_timeout=0,
+   DURATION first_byte_timeout=0,
+   DURATION between_bytes_timeout=0,
+   DURATION domain_usage_timeout=7200,
+   DURATION first_lookup_timeout=10,
+   INT max_connections=0,
+   INT proxy_header=0,
+   BLOB resolver=NULL,
+   ENUM {cfg, dns, min, max} ttl_from=cfg
+)</pre>
+
+
+<p style="margin-left:11%;"><b>Description</b></p>
+
+<p style="margin-left:22%;">Create a DNS director.</p>
+
+<p style="margin-left:22%; margin-top: 1em">The director
+creates backends with DNS lookups and chooses them in a
+round robin fashion. It accepts the following</p>
+
+<p style="margin-left:11%;"><b>Parameters:</b></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="38%">
+
+
+<p style="margin-top: 1em" valign="top"><i>port</i>
+(defaults to <b>&quot;http&quot;</b>)</p></td>
+<td width="37%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">The port to
+conncet to</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="46%">
+
+
+<p style="margin-top: 1em" valign="top"><i>share</i>
+(defaults to <b>&quot;DIRECTOR&quot;</b>)</p></td>
+<td width="29%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Backend sharing
+scope, see <i>ref_vmod_dynamic_share</i></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="46%">
+
+
+<p style="margin-top: 1em" valign="top"><i>host_header</i>
+(defaults to none)</p></td>
+<td width="29%">
+</td>
+</table>
+
+
+<p style="margin-left:25%; margin-top: 1em"><i>host_header</i>
+attribute for dynamically created backends. See also
+<i>ref_vmod_dynamic_probe</i></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="37%">
+
+
+<p style="margin-top: 1em" valign="top"><i>probe</i>
+(defaults to none)</p></td>
+<td width="38%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Probe to use.
+See also <i>ref_vmod_dynamic_probe</i></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="57%">
+
+
+<p style="margin-top: 1em" valign="top"><i>whitelist</i>
+&minus; an acl (defaults to none)</p></td>
+<td width="18%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Only name
+resolution results matching the acl will be used.</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="75%">
+
+
+<p style="margin-top: 1em" valign="top"><i>ttl</i> &minus;
+delay between lookups (defaults to one hour)</p></td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Minimum
+configured backend lifetime before address resultion is
+re&minus;checked, see also <i>ttl_from</i></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="30%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>domain_usage_timeout</i></p> </td>
+<td width="45%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Delay until an
+unused domain and its backends are removed (defaults to two
+hours)</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="30%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>first_lookup_timeout</i></p> </td>
+<td width="45%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Delay until the
+director fails lookup when a domain is requested for the
+first time and there is no response from the name service
+(defaults to ten seconds)</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="22%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="12%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>resolver</i></p> </td>
+<td width="63%">
+</td>
+</table>
+
+<p style="margin-left:25%; margin-top: 1em">Use a
+particular resolver instance created with the
+<i>dynamic.resolver()</i> constructor, if available.</p>
+
+<p style="margin-left:25%; margin-top: 1em">The argument to
+the <i>resolver</i> parameter must be the return value of
+the <i>xresolver.use()</i> method.</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="13%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>ttl_from</i></p> </td>
+<td width="69%">
+</td>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">How to
+determine the minimum backend lifetime before address
+resultion is re&minus;checked when a <i>resolver</i> is also
+used:</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="78%">
+
+
+<p style="margin-top: 1em" valign="top"><b>cfg</b>: Always
+use the <i>ttl</i> argument value (default)</p></td>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="78%">
+
+
+<p style="margin-top: 1em" valign="top"><b>dns</b>: Always
+use the ttl from the DNS response(s), falling back to the
+<i>ttl</i> argument value</p></td>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="78%">
+
+
+<p style="margin-top: 1em" valign="top"><b>min</b>: Use the
+minimum of the DNS response and the <i>ttl</i> argument
+value</p> </td>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="78%">
+
+
+<p style="margin-top: 1em" valign="top"><b>max</b>: Use the
+maximum of the DNS response and the <i>ttl</i> argument
+value</p> </td>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">If there is
+more than one DNS response, the minimum if taken as the DNS
+ttl.</p>
+
+<p style="margin-left:18%; margin-top: 1em">For no
+<i>resolver</i>, only &quot;cfg&quot; is valid.</p>
+
+<p style="margin-left:18%; margin-top: 1em">For DNS
+failures, the <i>ttl</i> argument is used.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Parameters to
+set attributes of backends</p>
+
+<p style="margin-left:15%;">See varnish documentation for
+details</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>connect_timeout</i>
+(defaults to global <i>connect_timeout</i>)</p></td>
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>first_byte_timeout</i>
+(defaults to global <i>first_byte_timeout</i>)</p></td>
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>between_bytes_timeout</i>
+(defaults to global <i>between_bytes_timeout</i>)</p></td>
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>max_connections</i>
+(defaults to zero, unlimited)</p></td>
+<tr valign="top" align="left">
+<td width="15%"></td>
+<td width="2%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="1%"></td>
+<td width="82%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>proxy_header</i>
+&minus; version of the PROXY protocol to use, or zero to
+disable it (defaults to zero, valid versions are one or
+two)</p> </td>
+</table>
+
+<p style="margin-left:11%;"><b>Example</b></p>
+<pre style="margin-left:26%; margin-top: 1em">probe www_probe {
+     .window = 8;
+     .initial = 7;
+     .threshold = 6;
+     .interval = 5s;
+}
+
+acl www_acl {
+     &quot;192.168&quot;/24;
+}
+
+sub vcl_init {
+     new www_dir = dynamic.director(
+             port = &quot;80&quot;,
+             probe = www_probe,
+             whitelist = www_acl,
+             ttl = 5m);
+}
+
+
+sub vcl_recv {
+     set req.backend_hint = www_dir.backend(&quot;production.acme.com&quot;);
+}</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>BACKEND
+xdirector.backend(STRING host=&quot;&quot;, STRING
+port=&quot;&quot;) <br>
+Description</b></p>
+
+<p style="margin-left:22%;">Return a backend from the
+director for a given host name and port.</p>
+
+<p style="margin-left:22%; margin-top: 1em">If the host is
+not specified, it is picked from either <b>bereq</b> or
+<b>req</b>.</p>
+
+<p style="margin-left:22%; margin-top: 1em">If the port is
+not speficied, it is taken from the director.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BACKEND
+xdirector.service(STRING service) <br>
+Description</b></p>
+
+<p style="margin-left:22%;">Return a backend from the
+director for a service name (DNS SRV record).</p>
+
+<p style="margin-left:22%; margin-top: 1em">This Method is
+only supported when a <i>dynamic.resolver()</i> object has
+been passed to the <i>dynamic.director()</i>
+constructor.</p>
+
+<p style="margin-left:22%; margin-top: 1em">SRV records
+contain host (called target) and port information. Dynamic
+backends are automatically added and maintained based on
+this information as if <i>xdirector.backend()</i> had been
+called.</p>
+
+<p style="margin-left:22%; margin-top: 1em">SRV records
+also contain <i>priority</i> and <i>weight</i> information.
+The <i>xdirector.service()</i> method returns a target
+(backend) from the lowest <i>priority</i> found healthy. If
+there are multiple healthy targets for the lowest
+<i>priority</i>, one is chosen randomly based on the
+probabilities defined by the <i>weight</i> attributes.</p>
+
+<p style="margin-left:22%; margin-top: 1em">Note that it
+highly recommended to use a <i>probe</i> argument to the
+<i>dynamic.director()</i> to avoid returning unresponsive
+backends.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>VOID
+xdirector.debug(BOOL) <br>
+Description</b></p>
+
+<p style="margin-left:22%;">Enable or disable debugging for
+a dynamic director, logging background operations related to
+backends management.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>new
+xresolver = dynamic.resolver(BOOL set_from_os, INT
+parallel)</b></p>
+
+<pre style="margin-left:15%;">new xresolver = dynamic.resolver(
+   BOOL set_from_os=1,
+   INT parallel=16
+)</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">Create
+<i>parallel getdns</i> contexts to be used with the
+<i>dynamic.director()</i> constructor &minus; see
+<i>xresolver.use()</i></p>
+
+
+<p style="margin-left:11%; margin-top: 1em">Parameters:</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>set_from_os</i><b>:
+whether defaults are taken from the operating
+system,</b></p> </td>
+</table>
+
+<p style="margin-left:25%;">see
+<i>https://getdnsapi.net/documentation/spec/#8&minus;dns&minus;contexts</i>
+for details</p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>parallel</i><b>:
+the number of contexts allocated. Each name
+resolution</b></p> </td>
+</table>
+
+<p style="margin-left:25%;">in progress requires one
+context.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Additional
+configuration of the resolver contexts is possible through
+the methods documented below. Attempts to call these methods
+from outside <b>vcl_init{}</b> will trigger a VCL
+failure.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BLOB
+xresolver.use()</b> <br>
+return a reference to the <i>dynamic.resolver()</i> object
+for use as a parameter to the <i>dynamic.director()</i>
+constructor.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_resolution_type(ENUM {RECURSING, STUB})</b>
+<br>
+Specifies whether DNS queries are performed with nonrecurive
+lookups or as a stub resolver.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em">See
+<i>https://getdnsapi.net/documentation/spec/#83&minus;contexts&minus;for&minus;basic&minus;resolution</i></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.clear_namespaces()</b> <br>
+Clear the list of namespaces to be configured, see
+below.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.add_namespace(ENUM)</b></p>
+
+<pre style="margin-left:15%;">BOOL xresolver.add_namespace(
+      ENUM {DNS, LOCALNAMES, NETBIOS, MDNS, NIS}
+)</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">Add a namespace
+to the list of namespaces to be queried.</p>
+
+<p style="margin-left:11%; margin-top: 1em">This method
+only adds the namespace to an internal list, The actual
+configuration is only done once
+<i>xresolver.set_namespaces()</i> is called.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em">See
+<i>https://getdnsapi.net/documentation/spec/#83&minus;contexts&minus;for&minus;basic&minus;resolution</i></p>
+
+<p style="margin-left:11%; margin-top: 1em">Notice that not
+all namespaces are available on all platforms. VCL load will
+fail with error <b>312</b> (The library did not have the
+requested API feature implemented.) in this case when
+<i>xresolver.set_namespaces()</i> is called.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_namespaces()</b> <br>
+Apply namespace configuration, see above.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.clear_transports()</b> <br>
+Clear the list of transports to be configured, see
+below.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.add_transport(ENUM {UDP, TCP, TLS})</b> <br>
+Add a transport to the list of transports to be tried.</p>
+
+<p style="margin-left:11%; margin-top: 1em">This method
+only adds the transport to an internal list, The actual
+configuration is only done once
+<i>xresolver.set_transports()</i> is called.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em">See
+<i>https://getdnsapi.net/documentation/spec/#83&minus;contexts&minus;for&minus;basic&minus;resolution</i></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_transports()</b> <br>
+Apply transport configuration, see above.</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_idle_timeout(DURATION)</b> <br>
+Specifies the duration the API will leave an idle TCP or TLS
+connection open for (idle means no outstanding responses and
+no pending queries).</p>
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_limit_outstanding_queries(INT)</b> <br>
+May only be called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_timeout(DURATION)</b> <br>
+May only be called from <b>vcl_init{}</b></p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>BOOL
+xresolver.set_follow_redirects(ENUM)</b></p>
+
+<pre style="margin-left:15%;">BOOL xresolver.set_follow_redirects(
+      ENUM {REDIRECTS_FOLLOW, REDIRECTS_DO_NOT_FOLLOW}
+)</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">May only be
+called from <b>vcl_init{}</b></p>
+
+<a name="PITFALLS"></a>
+<h2>PITFALLS</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">There is no
+support for lookups limited to IPv4 or IPv6 only. However it
+can be achieved by the means of a white list:</p>
+
+<pre style="margin-left:15%; margin-top: 1em">acl ipv4_only { &quot;0.0.0.0&quot;/0; }
+acl ipv6_only { &quot;::0&quot;/0; }</pre>
+
+
+<p style="margin-left:11%; margin-top: 1em">With that you
+can restrict backends to the desired IP network, and monitor
+error logs with the <b>whitelist mismatch</b> event. Knowing
+which addresses were rejected, you can fix your domains
+registration (DNS records, hosts file etc).</p>
+
+<a name="SEE ALSO"></a>
+<h2>SEE ALSO</h2>
+
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+<p style="margin-top: 1em" valign="top"><i>vcl(7)</i></p></td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+<p style="margin-top: 1em" valign="top"><i>vsl(7)</i></p></td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>vsl&minus;query(7)</i></p> </td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>varnish&minus;cli(7)</i></p> </td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>varnish&minus;counters(7)</i></p> </td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>varnishstat(1)</i></p> </td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>getaddrinfo(3)</i></p> </td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+<p style="margin-top: 1em" valign="top"><i>nscd(8)</i></p></td>
+<td width="57%">
+</td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="29%">
+
+
+
+<p style="margin-top: 1em" valign="top"><i>nsswitch.conf(5)</i></p> </td>
+<td width="57%">
+</td>
+</table>
+
+<a name="BREAKING CHANGES"></a>
+<h2>BREAKING CHANGES</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>2.0
+(2019&minus;07&minus;13)</b></p>
+
+<table width="100%" border=0 rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p valign="top"><b>Error</b> logging with
+<b>acl&minus;mismatch</b> has been renamed to <b>whitelist
+mismatch</b> and port information has been added.</p></td>
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em" valign="top">&bull;</p></td>
+<td width="2%"></td>
+<td width="86%">
+
+
+<p style="margin-top: 1em" valign="top">Port information
+has been added to director/backend names and the
+documentation section <i>ref_vmod_dynamic_names</i> has been
+added.</p> </td>
+</table>
+
+<a name="ACKNOWLEDGEMENTS"></a>
+<h2>ACKNOWLEDGEMENTS</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">We thank the
+various people and companies having made vmod_dynamic a
+reality:</p>
+
+<p style="margin-left:11%; margin-top: 1em">vmod_dynamic is
+based upon vmod_named developed and maintained from 2015 to
+2017 by Dridi Boukelmoune (github @dridi) and supported by
+Varnish Software.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Maintenance and
+improvements 2017 &minus; 2019:</p>
+
+<p style="margin-left:11%; margin-top: 1em">Generally
+sponsored by Spring Media and various unnamed UPLEX
+clients.</p>
+
+<p style="margin-left:11%; margin-top: 1em">SRV record
+support and getdns integration in 2019 was supported by
+GOG.com</p>
+
+<p style="margin-left:11%; margin-top: 1em">Code was
+written mostly by Geoffrey Simmons and Nils Goroll from
+UPLEX with additional contributions by: Ricardo Nabinger
+Sanchez and Ryan Steinmetz.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Thank you to
+all!</p>
+
+<a name="COPYRIGHT"></a>
+<h2>COPYRIGHT</h2>
+
+<pre style="margin-left:15%; margin-top: 1em">Copyright (c) 2015&minus;2016 Dridi Boukelmoune
+Copyright 2017&minus;2019 UPLEX &minus; Nils Goroll Systemoptimierung
+
+Authors: Dridi Boukelmoune &lt;dridi.boukelmoune@gmail.com&gt;
+         Nils Goroll &lt;nils.goroll@uplex.de&gt;
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.</pre>
+<hr>
+</body>
+</html>
