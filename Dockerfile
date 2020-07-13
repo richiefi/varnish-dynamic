@@ -7,18 +7,19 @@ ENV ACLOCAL_PATH /usr/local/share/aclocal
 ENV VMOD_DYNAMIC_VERSION 2.2.1
 RUN set -eux; \
         apt-get update && \
-		apt-get upgrade -y && \
-		apt-get install -y --no-install-recommends build-essential \
+        apt-get upgrade -y && \
+        apt-get install -y --no-install-recommends build-essential \
             autoconf \
             automake \
             libtool \
             make \
             pkgconf \
             python3 \
-			python-docutils \
-			wget \
-			unzip \
-			varnish-dev=$VARNISH_VERSION \
+            python-docutils \
+            wget \
+            unzip \
+            libgetdns-dev \
+            varnish-dev=$VARNISH_VERSION \
         ;\
         wget "https://github.com/nigoroll/libvmod-dynamic/archive/v${VMOD_DYNAMIC_VERSION}.zip" -O /tmp/libvmod-dynamic.zip; \
         unzip -d /tmp /tmp/libvmod-dynamic.zip; \
