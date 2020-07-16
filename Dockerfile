@@ -32,4 +32,8 @@ RUN set -eux; \
 
 FROM varnish:6.4
 COPY --from=builder /usr/lib/varnish/vmods/ /usr/lib/varnish/vmods/
+RUN set -eux; \
+        apt-get update && \
+        apt-get upgrade -y && \
+        apt-get install -y --no-install-recommends libgetdns10
 RUN PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/sbin" ldconfig -n /usr/lib/varnish/vmods
