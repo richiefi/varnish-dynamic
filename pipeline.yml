@@ -1,0 +1,12 @@
+agents:
+  platform: "docker"
+steps:
+  - command:
+    - docker build -t richiefi/varnish-dynamic:6.4 .
+    - docker push richiefi/varnish-dynamic:6.4
+    branches: main
+    plugins:
+      - docker-login#v2.0.1:
+          username: richiegithubci
+          password-env: DOCKER_RICHIEGITHUBCI_PASSWORD
+
